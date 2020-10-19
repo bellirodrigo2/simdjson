@@ -5,10 +5,8 @@ namespace ondemand {
 simdjson_really_inline json_iterator::json_iterator(json_iterator &&other) noexcept
   : token_iterator(std::forward<token_iterator>(other)),
     parser{other.parser},
-    current_string_buf_loc{other.current_string_buf_loc}
-#ifdef SIMDJSON_ONDEMAND_SAFETY_RAILS
-    , active_lease_depth{other.active_lease_depth}
-#endif
+    current_string_buf_loc{other.current_string_buf_loc},
+    active_depth{other.active_depth}
 {
   other.parser = nullptr;
 }
@@ -17,9 +15,7 @@ simdjson_really_inline json_iterator &json_iterator::operator=(json_iterator &&o
   index = other.index;
   parser = other.parser;
   current_string_buf_loc = other.current_string_buf_loc;
-#ifdef SIMDJSON_ONDEMAND_SAFETY_RAILS
-  active_lease_depth = other.active_lease_depth;
-#endif
+  active_depth = other.active_depth;
   other.parser = nullptr;
   return *this;
 }
@@ -27,20 +23,16 @@ simdjson_really_inline json_iterator &json_iterator::operator=(json_iterator &&o
 simdjson_really_inline json_iterator::json_iterator(ondemand::parser *_parser) noexcept
   : token_iterator(_parser->dom_parser.buf, _parser->dom_parser.structural_indexes.get()),
     parser{_parser},
-    current_string_buf_loc{parser->string_buf.get()}
-#ifdef SIMDJSON_ONDEMAND_SAFETY_RAILS
-    , active_lease_depth{0}
-#endif
+    current_string_buf_loc{parser->string_buf.get()},
+    active_depth{0}
 {
   // Release the string buf so it can be reused by the next document
   logger::log_headers();
 }
-#ifdef SIMDJSON_ONDEMAND_SAFETY_RAILS
 simdjson_really_inline json_iterator::~json_iterator() noexcept {
   // If we have any leases out when we die, it's an error
-  SIMDJSON_ASSUME(active_lease_depth == 0);
+  SIMDJSON_ASSUME(active_depth == 0);
 }
-#endif
 
 simdjson_warn_unused simdjson_really_inline simdjson_result<bool> json_iterator::start_object(const uint8_t *json) noexcept {
   if (*json != '{') { logger::log_error(*this, "Not an object"); return INCORRECT_TYPE; }
@@ -315,14 +307,10 @@ simdjson_really_inline bool json_iterator::is_alive() const noexcept {
 
 
 simdjson_really_inline json_iterator_ref json_iterator::borrow() noexcept {
-#ifdef SIMDJSON_ONDEMAND_SAFETY_RAILS
-  SIMDJSON_ASSUME(active_lease_depth == 0);
+  SIMDJSON_ASSUME(active_depth == 0);
   const uint32_t child_depth = 1;
-  active_lease_depth = child_depth;
+  active_depth = child_depth;
   return json_iterator_ref(this, child_depth);
-#else
-  return json_iterator_ref(this);
-#endif
 }
 
 simdjson_really_inline error_code json_iterator::report_error(error_code error, const char *message) noexcept {
@@ -339,59 +327,40 @@ simdjson_really_inline error_code json_iterator::error() const noexcept {
 // json_iterator_ref
 //
 simdjson_really_inline json_iterator_ref::json_iterator_ref(json_iterator_ref &&other) noexcept
-  : iter{other.iter}
-#ifdef SIMDJSON_ONDEMAND_SAFETY_RAILS
-    , lease_depth{other.lease_depth}
-#endif // SIMDJSON_ONDEMAND_SAFETY_RAILS
+  : iter{other.iter},
+    depth{other.depth}
 {
   other.iter = nullptr;
 }
 simdjson_really_inline json_iterator_ref &json_iterator_ref::operator=(json_iterator_ref &&other) noexcept {
   assert_is_not_active();
   iter = other.iter;
-#ifdef SIMDJSON_ONDEMAND_SAFETY_RAILS
-  lease_depth = other.lease_depth;
-#endif // SIMDJSON_ONDEMAND_SAFETY_RAILS
+  depth = other.depth;
   other.iter = nullptr;
   return *this;
 }
 
-#ifdef SIMDJSON_ONDEMAND_SAFETY_RAILS
 simdjson_really_inline json_iterator_ref::~json_iterator_ref() noexcept {
   // The caller MUST consume their value and release the iterator before they die
   assert_is_not_active();
 }
 simdjson_really_inline json_iterator_ref::json_iterator_ref(
   json_iterator *_iter,
-  uint32_t _lease_depth
-) noexcept : iter{_iter}, lease_depth{_lease_depth}
+  uint32_t _depth
+) noexcept : iter{_iter}, depth{_depth}
 {
   assert_is_active();
 }
-#else
-simdjson_really_inline json_iterator_ref::json_iterator_ref(
-  json_iterator *_iter
-) noexcept : iter{_iter}
-{
-  assert_is_active();
-}
-#endif // SIMDJSON_ONDEMAND_SAFETY_RAILS
 
 simdjson_really_inline json_iterator_ref json_iterator_ref::borrow() noexcept {
   assert_is_active();
-#ifdef SIMDJSON_ONDEMAND_SAFETY_RAILS
-  const uint32_t child_depth = lease_depth + 1;
-  iter->active_lease_depth = child_depth;
+  const uint32_t child_depth = depth + 1;
+  iter->active_depth = child_depth;
   return json_iterator_ref(iter, child_depth);
-#else
-  return json_iterator_ref(iter);
-#endif
 }
 simdjson_really_inline void json_iterator_ref::release() noexcept {
   assert_is_active();
-#ifdef SIMDJSON_ONDEMAND_SAFETY_RAILS
-  iter->active_lease_depth = lease_depth - 1;
-#endif
+  iter->active_depth = depth - 1;
   iter = nullptr;
 }
 
@@ -412,27 +381,15 @@ simdjson_really_inline bool json_iterator_ref::is_alive() const noexcept {
   return iter != nullptr;
 }
 simdjson_really_inline bool json_iterator_ref::is_active() const noexcept {
-#ifdef SIMDJSON_ONDEMAND_SAFETY_RAILS
-  return is_alive() && lease_depth == iter->active_lease_depth;
-#else
-  return is_alive();
-#endif
+  return is_alive() && depth == iter->active_depth;
 }
 simdjson_really_inline void json_iterator_ref::assert_is_active() const noexcept {
-// We don't call const functions because VC++ is worried they might have side effects in __assume
-#ifdef SIMDJSON_ONDEMAND_SAFETY_RAILS
-  SIMDJSON_ASSUME(iter != nullptr && lease_depth == iter->active_lease_depth);
-#else
-  SIMDJSON_ASSUME(iter != nullptr);
-#endif
+  // We don't call const functions because VC++ is worried they might have side effects in __assume
+  SIMDJSON_ASSUME(iter != nullptr && depth == iter->active_depth);
 }
 simdjson_really_inline void json_iterator_ref::assert_is_not_active() const noexcept {
-// We don't call const functions because VC++ is worried they might have side effects in __assume
-#ifdef SIMDJSON_ONDEMAND_SAFETY_RAILS
-  SIMDJSON_ASSUME(!(iter != nullptr && lease_depth == iter->active_lease_depth));
-#else
-  SIMDJSON_ASSUME(!(iter != nullptr));
-#endif
+  // We don't call const functions because VC++ is worried they might have side effects in __assume
+  SIMDJSON_ASSUME(!(iter != nullptr && depth == iter->active_depth));
 }
 
 

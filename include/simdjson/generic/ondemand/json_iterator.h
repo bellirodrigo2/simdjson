@@ -20,11 +20,7 @@ public:
   simdjson_really_inline json_iterator() noexcept = default;
   simdjson_really_inline json_iterator(json_iterator &&other) noexcept;
   simdjson_really_inline json_iterator &operator=(json_iterator &&other) noexcept;
-#ifdef SIMDJSON_ONDEMAND_SAFETY_RAILS
   simdjson_really_inline ~json_iterator() noexcept;
-#else
-  simdjson_really_inline ~json_iterator() noexcept = default;
-#endif
   simdjson_really_inline json_iterator(const json_iterator &other) noexcept = delete;
   simdjson_really_inline json_iterator &operator=(const json_iterator &other) noexcept = delete;
 
@@ -206,9 +202,7 @@ protected:
    * we should store it in document so there's only one of them.
    */
   error_code _error{};
-#ifdef SIMDJSON_ONDEMAND_SAFETY_RAILS
-  uint32_t active_lease_depth{};
-#endif
+  uint32_t active_depth{};
 
   simdjson_really_inline json_iterator(ondemand::parser *parser) noexcept;
   template<int N>
@@ -232,11 +226,7 @@ public:
   simdjson_really_inline json_iterator_ref(json_iterator_ref &&other) noexcept;
   simdjson_really_inline json_iterator_ref &operator=(json_iterator_ref &&other) noexcept;
 
-#ifdef SIMDJSON_ONDEMAND_SAFETY_RAILS
   simdjson_really_inline ~json_iterator_ref() noexcept;
-#else
-  simdjson_really_inline ~json_iterator_ref() noexcept = default;
-#endif // SIMDJSON_ONDEMAND_SAFETY_RAILS
 
   simdjson_really_inline json_iterator_ref(const json_iterator_ref &other) noexcept = delete;
   simdjson_really_inline json_iterator_ref &operator=(const json_iterator_ref &other) noexcept = delete;
@@ -256,12 +246,8 @@ public:
 
 private:
   json_iterator *iter{};
-#ifdef SIMDJSON_ONDEMAND_SAFETY_RAILS
-  uint32_t lease_depth{};
-  simdjson_really_inline json_iterator_ref(json_iterator *iter, uint32_t lease_depth) noexcept;
-#else
-  simdjson_really_inline json_iterator_ref(json_iterator *iter) noexcept;
-#endif
+  uint32_t depth{};
+  simdjson_really_inline json_iterator_ref(json_iterator *iter, uint32_t depth) noexcept;
 
   friend class json_iterator;
 }; // class json_iterator_ref
