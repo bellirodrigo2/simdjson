@@ -21,8 +21,6 @@ public:
   object(const object &) = delete;
   object &operator=(const object &) = delete;
 
-  simdjson_really_inline ~object() noexcept;
-
   simdjson_really_inline object_iterator begin() noexcept;
   simdjson_really_inline object_iterator end() noexcept;
   simdjson_really_inline simdjson_result<value> operator[](const std::string_view key) & noexcept;

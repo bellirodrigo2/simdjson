@@ -7,7 +7,7 @@ simdjson_really_inline value::value(json_iterator_ref && _iter, const uint8_t *_
     json{_json}
 {
   iter.assert_is_active();
-  SIMDJSON_ASSUME(json != nullptr);
+  SIMDJSON_ASSUME(json);
 }
 
 simdjson_really_inline value::~value() noexcept {
@@ -15,14 +15,18 @@ simdjson_really_inline value::~value() noexcept {
   // depth so that the array/object iteration routines will work correctly.
   // PERF TODO this better be elided entirely when people actually use the value. Don't care if it
   // gets bumped on the error path unless that's costing us something important.
-  if (iter.is_alive()) {
-    if (*json == '[' || *json == '{') {
-      logger::log_start_value(*iter, "unused");
-      simdjson_unused auto _err = iter->skip_container();
-    } else {
-      logger::log_value(*iter, "unused");
+  if (json) {
+    switch (*json) {
+      case '[': {
+        simdjson_unused auto _error = iter->started_array();
+        break;
+      }
+      case '{': {
+        simdjson_unused auto _error = iter->started_object();
+        break;
+      }
+      default: logger::log_value(*iter, "unused");
     }
-    iter.release();
   }
 }
 
@@ -31,26 +35,28 @@ simdjson_really_inline value value::start(json_iterator_ref &&iter) noexcept {
 }
 
 simdjson_really_inline const uint8_t *value::consume() noexcept {
-  iter.release();
-  return json;
+  auto old_json = json;
+  json = nullptr;
+  return old_json;
 }
 template<typename T>
 simdjson_really_inline simdjson_result<T> value::consume_if_success(simdjson_result<T> &&result) noexcept {
   if (!result.error()) { consume(); }
   return std::forward<simdjson_result<T>>(result);
 }
+simdjson_really_inline error_code value::consume_if_success(error_code error) noexcept {
+  if (!error) { consume(); }
+  return error;
+}
 
 simdjson_really_inline simdjson_result<array> value::get_array() noexcept {
-  bool has_value;
-  SIMDJSON_TRY( iter->start_array(json).get(has_value) );
-  if (!has_value) { iter.release(); }
-  return array(std::move(iter));
+  if (*json != '[') { return INCORRECT_TYPE; }
+  iter.start_array();
+  consume();
+  return consume_if_success( array::started(std::move(iter)) );
 }
 simdjson_really_inline simdjson_result<object> value::get_object() noexcept {
-  bool has_value;
-  SIMDJSON_TRY( iter->start_object(json).get(has_value) );
-  if (!has_value) { iter.release(); }
-  return object(std::move(iter));
+  return consume_if_success( object::start(json, iter) );
 }
 simdjson_really_inline simdjson_result<raw_json_string> value::get_raw_json_string() && noexcept {
   return iter->consume_raw_json_string();
@@ -200,6 +206,9 @@ simdjson_really_inline bool value::is_iterator_alive() const noexcept {
 }
 simdjson_really_inline void value::iteration_finished() noexcept {
   iter.release();
+}
+simdjson_warn_unused simdjson_really_inline error_code value::finish_iterator_child() noexcept {
+  return iter.finish_child();
 }
 
 } // namespace ondemand

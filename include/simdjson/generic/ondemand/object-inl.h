@@ -50,14 +50,6 @@ simdjson_really_inline object::object(json_iterator_ref &&_iter) noexcept
 }
 
 
-simdjson_really_inline object::~object() noexcept {
-  if (iter.is_alive()) {
-    logger::log_event(*iter, "unfinished", "object");
-    simdjson_unused auto _err = iter->skip_container();
-    iter.release();
-  }
-}
-
 simdjson_really_inline error_code object::find_field(const std::string_view key) noexcept {
   if (!iter.is_alive()) { return NO_SUCH_FIELD; }
 
@@ -68,6 +60,7 @@ simdjson_really_inline error_code object::find_field(const std::string_view key)
     at_start = false;
     has_value = true;
   } else {
+    if ((error = iter.finish_child() )) { iter.release(); return error; }
     if ((error = iter->has_next_field().get(has_value) )) { iter.release(); return error; }
   }
   while (has_value) {

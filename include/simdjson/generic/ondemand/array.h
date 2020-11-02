@@ -24,11 +24,6 @@ public:
   array &operator=(const array &) = delete;
 
   /**
-   * Finishes iterating the array if it is not already fully iterated.
-   */
-  simdjson_really_inline ~array() noexcept;
-
-  /**
    * Begin array iteration.
    *
    * Part of the std::iterable interface.
@@ -76,6 +71,7 @@ protected:
   simdjson_really_inline json_iterator_ref borrow_iterator() noexcept;
   simdjson_really_inline bool is_iterator_alive() const noexcept;
   simdjson_really_inline void iteration_finished() noexcept;
+  simdjson_warn_unused simdjson_really_inline error_code finish_iterator_child() noexcept;
 
   /**
    * Iterator marking current position.

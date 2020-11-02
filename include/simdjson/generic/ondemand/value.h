@@ -278,9 +278,12 @@ protected:
   simdjson_really_inline json_iterator_ref borrow_iterator() noexcept;
   simdjson_really_inline bool is_iterator_alive() const noexcept;
   simdjson_really_inline void iteration_finished() noexcept;
+  simdjson_warn_unused simdjson_really_inline error_code finish_iterator_child() noexcept;
+
   simdjson_really_inline const uint8_t *consume() noexcept;
   template<typename T>
   simdjson_really_inline simdjson_result<T> consume_if_success(simdjson_result<T> &&result) noexcept;
+  simdjson_warn_unused simdjson_really_inline error_code consume_if_success(error_code error) noexcept;
 
   json_iterator_ref iter{};
   const uint8_t *json{}; // The JSON text of the value

@@ -7,6 +7,7 @@ simdjson_really_inline document::document(ondemand::json_iterator &&_iter, const
     json{_json}
 {
   logger::log_start_value(iter, "document");
+  SIMDJSON_ASSUME(json);
 }
 simdjson_really_inline document::~document() noexcept {
   if (iter.is_alive()) {
@@ -15,7 +16,7 @@ simdjson_really_inline document::~document() noexcept {
 }
 
 simdjson_really_inline void document::assert_at_start() const noexcept {
-  SIMDJSON_ASSUME(json != nullptr);
+  SIMDJSON_ASSUME(json);
 }
 simdjson_really_inline document document::start(json_iterator &&iter) noexcept {
   auto json = iter.advance();
@@ -128,6 +129,9 @@ simdjson_really_inline bool document::is_iterator_alive() const noexcept {
 }
 simdjson_really_inline void document::iteration_finished() noexcept {
   json = nullptr;
+}
+simdjson_warn_unused simdjson_really_inline error_code document::finish_iterator_child() noexcept {
+  return iter.finish_child(0);
 }
 
 } // namespace ondemand

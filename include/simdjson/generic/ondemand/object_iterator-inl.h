@@ -27,8 +27,12 @@ simdjson_really_inline object_iterator &object_iterator::operator++() noexcept {
   // TODO this is a safety rail ... users should exit loops as soon as they receive an error.
   // Nonetheless, let's see if performance is OK with this if statement--the compiler may give it to us for free.
   if (!iter->is_alive()) { return *this; } // Iterator will be released if there is an error
+
+  auto error = iter->finish_child();
+  if (error) { iter->release(); return *this; }
+
   bool has_value;
-  error_code error = (*iter)->has_next_field().get(has_value);
+  error = (*iter)->has_next_field().get(has_value);
   if (!(error || has_value)) { iter->release(); }
   return *this;
 }

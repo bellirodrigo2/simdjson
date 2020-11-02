@@ -20,7 +20,6 @@ public:
   simdjson_really_inline json_iterator() noexcept = default;
   simdjson_really_inline json_iterator(json_iterator &&other) noexcept;
   simdjson_really_inline json_iterator &operator=(json_iterator &&other) noexcept;
-  simdjson_really_inline ~json_iterator() noexcept;
   simdjson_really_inline json_iterator(const json_iterator &other) noexcept = delete;
   simdjson_really_inline json_iterator &operator=(const json_iterator &other) noexcept = delete;
 
@@ -149,6 +148,11 @@ public:
   simdjson_warn_unused simdjson_really_inline error_code skip() noexcept;
 
   /**
+   * Finishes iteration of a child in an object or array.
+   */
+  simdjson_warn_unused simdjson_really_inline error_code finish_child(uint32_t depth) noexcept;
+
+  /**
    * Skips to the end of a JSON object or array.
    * 
    * @return true if this was the end of an array, false if it was the end of an object.
@@ -202,7 +206,7 @@ protected:
    * we should store it in document so there's only one of them.
    */
   error_code _error{};
-  uint32_t active_depth{};
+  uint32_t current_depth{};
 
   simdjson_really_inline json_iterator(ondemand::parser *parser) noexcept;
   template<int N>
@@ -231,8 +235,8 @@ public:
   simdjson_really_inline json_iterator_ref(const json_iterator_ref &other) noexcept = delete;
   simdjson_really_inline json_iterator_ref &operator=(const json_iterator_ref &other) noexcept = delete;
 
-  simdjson_really_inline json_iterator_ref borrow() noexcept;
-  simdjson_really_inline void release() noexcept;
+  simdjson_really_inline json_iterator_ref child() noexcept;
+  simdjson_really_inline json_iterator_ref copy() noexcept;
 
   simdjson_really_inline json_iterator *operator->() noexcept;
   simdjson_really_inline json_iterator &operator*() noexcept;
@@ -243,6 +247,11 @@ public:
 
   simdjson_really_inline void assert_is_active() const noexcept;
   simdjson_really_inline void assert_is_not_active() const noexcept;
+
+  /**
+   * Finishes iteration of a child in an object or array.
+   */
+  simdjson_warn_unused simdjson_really_inline error_code finish_child() noexcept;
 
 private:
   json_iterator *iter{};
